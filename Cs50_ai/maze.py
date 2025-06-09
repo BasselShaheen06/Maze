@@ -1,4 +1,5 @@
 import sys
+from PIL import Image, ImageDraw
 
 class Node():
     def __init__(self, state, parent, action):
@@ -48,9 +49,9 @@ class Maze():
             contents = f.read()
 
         # Validate start and goal
-        if contents.count("S") != 1:
+        if contents.count("A") != 1:
             raise Exception("maze must have exactly one start point")
-        if contents.count("E") != 1:
+        if contents.count("B") != 1:
             raise Exception("maze must have exactly one goal")
 
         # Determine height and width of maze
@@ -64,13 +65,13 @@ class Maze():
             row = []
             for j in range(self.width):
                 try:
-                    if contents[i][j] == "S":
+                    if contents[i][j] == "A":
                         self.start = (i, j)
                         row.append(False)
-                    elif contents[i][j] == "E":
+                    elif contents[i][j] == "B":
                         self.goal = (i, j)
                         row.append(False)
-                    elif contents[i][j] == "#":
+                    elif contents[i][j] == " ":
                         row.append(False)
                     else:
                         row.append(True)
@@ -89,11 +90,11 @@ class Maze():
                 if col:
                     print("█", end="")
                 elif (i, j) == self.start:
-                    print("S", end="")
+                    print("A", end="")
                 elif (i, j) == self.goal:
-                    print("E", end="")
+                    print("B", end="")
                 elif solution is not None and (i, j) in solution:
-                    print("*", end="")
+                    print(".", end="")
                 else:
                     print(" ", end="")
             print()

@@ -1,5 +1,4 @@
 import sys
-from PIL import Image, ImageDraw
 
 class Node():
     def __init__(self, state, parent, action):

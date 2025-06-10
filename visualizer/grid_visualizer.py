@@ -2,6 +2,7 @@ from PyQt5.QtWidgets import QApplication, QWidget, QGridLayout, QLabel, QSizePol
 from PyQt5.QtGui import QColor, QPalette
 from PyQt5.QtCore import Qt
 import sys
+import os
 
 # Define colors for tile types
 TILE_COLORS = {
@@ -22,43 +23,36 @@ class MazeVisualizer(QWidget):
     def initUI(self):
         self.setWindowTitle("Maze Visualizer")
         grid_layout = QGridLayout()
+        grid_layout.setSpacing(0)
+        grid_layout.setContentsMargins(0, 0, 0, 0)
+
         self.setLayout(grid_layout)
 
-        self.setMinimumSize(400, 400)
+        self.setMinimumSize(4000, 4000)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
         for row_idx, row in enumerate(self.maze_grid):
             for col_idx, tile in enumerate(row):
                 label = QLabel()
-                label.setFixedSize(20, 20)  # size of each tile
+                label.setFixedSize(70, 70)  # size of each tile
                 
-                # Set objectName only once, based on tile type
-                if tile == 'S':
-                    label.setObjectName("startTile")
-                elif tile == 'E':
-                    label.setObjectName("endTile")
-                elif tile == 'K':
-                    label.setObjectName("keyTile")
-                elif tile == 'H':
-                    label.setObjectName("hintTile")
-                elif tile == '#':
-                    label.setObjectName("wallTile")
-                else:
-                    label.setObjectName("pathTile")  # default for '.' or unknown tiles
-
-                # Apply background color via palette (optional if you use QSS)
-                color = TILE_COLORS.get(tile, QColor(255, 255, 255))  # default white
-                palette = label.palette()
-                palette.setColor(QPalette.Window, color)
+                tile_name_map = {
+                    '#': 'wallTile',
+                    '.': 'pathTile',
+                    'S': 'startTile',
+                    'E': 'endTile',
+                    'K': 'keyTile',
+                    'H': 'hintTile'
+                }
+                label.setObjectName(tile_name_map.get(tile, 'pathTile'))
                 label.setAutoFillBackground(True)
-                label.setPalette(palette)
+
                 
                 grid_layout.addWidget(label, row_idx, col_idx)
 
         self.show()
 
-
-def load_stylesheet(path="visualizer/stylesheet.qss"):
+def load_stylesheet(path="visualizer/style.qss"):
     with open(path, "r") as f:
         return f.read()
 
@@ -71,14 +65,10 @@ def visualize_maze(maze_grid):
 
 
 if __name__ == "__main__":
-    # Example maze: S=start, E=end, #=wall, .=path, K=key, H=hint
-    maze = [
-        ['#', '#', '#', '#', '#', '#'],
-        ['#', 'S', '.', 'K', '.', '#'],
-        ['#', '.', '#', '.', 'H', '#'],
-        ['#', '.', '#', '.', '.', '#'],
-        ['#', '.', '.', 'E', '#', '#'],
-        ['#', '#', '#', '#', '#', '#']
-    ]
+    # Read the maze from file into a list of lists
+    maze_path = os.path.join(os.path.dirname(__file__), 'G:\DSAproject_python\Cs50_ai\maze3.txt')
+    with open(maze_path, 'r') as file:
+        maze_grid = [list(line.strip()) for line in file if line.strip()]  # remove \n and empty lines
 
-    visualize_maze(maze)
+    visualize_maze(maze_grid)
+

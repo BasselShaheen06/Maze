@@ -1,0 +1,41 @@
+QLabel {
+    border: 1px solid #1a1a1a;           /* Thin gridlines */
+    qproperty-alignment: AlignCenter;
+    font-weight: bold;
+    font-size: 12px;
+}
+
+QWidget {
+    background-color: #000000;           /* Match outer background */
+    color: #FFFFFF;
+}
+
+QLabel#wallTile {
+    background-color: #000000;
+    color: #FFFFFF;
+}
+
+QLabel#pathTile {
+    background-color:rgb(247, 247, 247);           /* Light yellow */
+    color: #000000;
+}
+
+QLabel#startTile {
+    background-color: #00ff00;           /* Bright green */
+    color: #000000;
+}
+
+QLabel#endTile {
+    background-color: #ff0000;           /* Bright red */
+    color: #FFFFFF;
+}
+
+QLabel#keyTile {
+    background-color:rgb(171, 171, 255);           /* Light blue/purple */
+    color: #000000;
+}
+
+QLabel#hintTile {
+    background-color: #ff8800;           /* Orange */
+    color: #000000;
+}

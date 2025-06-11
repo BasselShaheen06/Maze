@@ -28,7 +28,7 @@ class MazeVisualizer(QWidget):
 
         self.setLayout(grid_layout)
 
-        self.setMinimumSize(4000, 4000)
+        self.setMinimumSize(400, 400)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
         for row_idx, row in enumerate(self.maze_grid):
@@ -66,7 +66,7 @@ def visualize_maze(maze_grid):
 
 if __name__ == "__main__":
     # Read the maze from file into a list of lists
-    maze_path = os.path.join(os.path.dirname(__file__), 'G:\DSAproject_python\Cs50_ai\maze3.txt')
+    maze_path = os.path.join(os.path.dirname(__file__), 'G:\DSAproject_python\Cs50_ai\maze2.txt')
     with open(maze_path, 'r') as file:
         maze_grid = [list(line.strip()) for line in file if line.strip()]  # remove \n and empty lines
 

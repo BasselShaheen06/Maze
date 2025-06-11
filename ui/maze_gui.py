@@ -1,314 +1,302 @@
 import sys
-import os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from PyQt5.QtWidgets import (
+    QApplication, QMainWindow, QPushButton, QVBoxLayout, QWidget,
+    QFileDialog, QHBoxLayout, QLabel, QTableWidget, QTableWidgetItem,
+    QSizePolicy, QGroupBox, QGridLayout, QSpacerItem
+)
+from PyQt5.QtCore import QTimer, Qt
+from PyQt5.QtGui import QColor, QFont
 
-import tkinter as tk
-from tkinter import filedialog, messagebox, ttk
-from bmaze import *  
-import time
+from maze import Maze
+from ui.maze_canvas import MazeCanvas  # Adjust path if needed
+from algorithms import bfs, dfs, astar, dijkstra, lhr, rhr, deadendfill
 
-TILE_SIZE = 25
-COLORS = {
-    "wall": "#8B9DC3",      # Soft blue-gray
-    "path": "#373737",      # Very light gray
-    "start": "#81C784",     # Soft green
-    "goal": "#00FFDD",      # Soft pink
-    "solution": "#7CC4FF",  # Light blue
-    "K": "#FFE082",         # Soft yellow
-    "H": "#7247C2",         # Soft purple
-    "C": "#741B00"          # Soft orange
-}
 
-class MazeGUI:
-    def __init__(self, root):
-        self.root = root
-        self.root.title("Maze Solver")
-        self.root.configure(bg="#000000")
-        
-        # Simple style
-        style = ttk.Style()
-        style.theme_use('default')
-        style.configure('Gentle.TButton', 
-                       background="#848484",
-                       foreground="#000000",
-                       borderwidth=1,
-                       relief='solid',
-                       padding=(8, 4))
-        style.map('Gentle.TButton',
-                 background=[('active', '#BBDEFB')])
-        
-        # Main container
-        main_frame = tk.Frame(self.root, bg='#F5F5F5')
-        main_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
-        
-        # Canvas area
-        canvas_frame = tk.Frame(main_frame, bg='#F5F5F5', relief='solid', bd=1)
-        canvas_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 15))
-        
-        # Canvas with simple scrollbars
-        self.canvas = tk.Canvas(canvas_frame, bg='white', highlightthickness=0)
-        h_scrollbar = tk.Scrollbar(canvas_frame, orient=tk.HORIZONTAL, command=self.canvas.xview)
-        v_scrollbar = tk.Scrollbar(canvas_frame, orient=tk.VERTICAL, command=self.canvas.yview)
-        self.canvas.configure(xscrollcommand=h_scrollbar.set, yscrollcommand=v_scrollbar.set)
-        
-        h_scrollbar.pack(side=tk.BOTTOM, fill=tk.X)
-        v_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        self.canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        
-        # Controls area
-        controls_frame = tk.Frame(main_frame, bg='#F5F5F5')
-        controls_frame.pack(fill=tk.X)
-        
-        # File controls
-        file_frame = tk.Frame(controls_frame, bg='#F5F5F5')
-        file_frame.pack(side=tk.LEFT, padx=(0, 20))
-        
-        tk.Label(file_frame, text="File:", bg='#F5F5F5', fg='#424242', 
-                font=('Arial', 9)).pack(anchor='w')
-        
-        file_buttons = tk.Frame(file_frame, bg='#F5F5F5')
-        file_buttons.pack(fill=tk.X, pady=(2, 0))
-        
-        ttk.Button(file_buttons, text="Load Maze", command=self.load_maze, 
-                  style='Gentle.TButton').pack(side=tk.LEFT, padx=(0, 5))
-        ttk.Button(file_buttons, text="Clear", command=self.clear_maze, 
-                  style='Gentle.TButton').pack(side=tk.LEFT)
-        
-        # Algorithm controls
-        algo_frame = tk.Frame(controls_frame, bg='#F5F5F5')
-        algo_frame.pack(side=tk.LEFT, padx=(0, 20))
-        
-        tk.Label(algo_frame, text="Algorithms:", bg='#F5F5F5', fg='#424242', 
-                font=('Arial', 9)).pack(anchor='w')
-        
-        # First row of algorithms
-        algo_row1 = tk.Frame(algo_frame, bg='#F5F5F5')
-        algo_row1.pack(fill=tk.X, pady=(2, 2))
-        
-        ttk.Button(algo_row1, text="A*", command=self.solve_a_star, 
-                  style='Gentle.TButton').pack(side=tk.LEFT, padx=(0, 3))
-        ttk.Button(algo_row1, text="Dijkstra", command=self.solve_dijkstra, 
-                  style='Gentle.TButton').pack(side=tk.LEFT, padx=(0, 3))
-        ttk.Button(algo_row1, text="BFS", command=self.solve_bfs, 
-                  style='Gentle.TButton').pack(side=tk.LEFT, padx=(0, 3))
-        ttk.Button(algo_row1, text="DFS", command=self.solve_dfs, 
-                  style='Gentle.TButton').pack(side=tk.LEFT)
-        
-        # Second row of algorithms
-        algo_row2 = tk.Frame(algo_frame, bg='#F5F5F5')
-        algo_row2.pack(fill=tk.X)
-        
-        ttk.Button(algo_row2, text="Left Hand", command=self.solve_lhr, 
-                  style='Gentle.TButton').pack(side=tk.LEFT, padx=(0, 3))
-        ttk.Button(algo_row2, text="Right Hand", command=self.solve_rhr, 
-                  style='Gentle.TButton').pack(side=tk.LEFT, padx=(0, 3))
-        ttk.Button(algo_row2, text="Dead End Fill", command=self.solve_def, 
-                  style='Gentle.TButton').pack(side=tk.LEFT)
-        
-        # Info area
-        info_frame = tk.Frame(controls_frame, bg='#F5F5F5')
-        info_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 20))
-        
-        tk.Label(info_frame, text="Status:", bg='#F5F5F5', fg='#424242', 
-                font=('Arial', 9)).pack(anchor='w')
-        
-        self.info_text = tk.Text(info_frame, height=3, bg='#FFFFFF', 
-                                fg='#424242', font=('Arial', 9), 
-                                relief='solid', bd=1, wrap=tk.WORD)
-        self.info_text.pack(fill=tk.BOTH, expand=True, pady=(2, 0))
-        
-        # Exit button
-        exit_frame = tk.Frame(controls_frame, bg='#F5F5F5')
-        exit_frame.pack(side=tk.RIGHT)
-        
-        tk.Label(exit_frame, text="", bg='#F5F5F5').pack()  # Spacer
-        ttk.Button(exit_frame, text="Exit", command=self.root.quit,
-                  style='Gentle.TButton').pack(pady=(12, 0))
-        
-        # Simple legend
-        self.create_legend()
-        
-        # Initialize
+class MazeGUI(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Maze Solver - Animated Algorithms")
+        self.setGeometry(100, 100, 900, 700)
+
+        # Algorithm animation related
+        self.algorithm_generator = None
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.animate_step)
+
+        # Current Maze & Canvas setup
         self.maze = None
-        self.canvas_width = 0
-        self.canvas_height = 0
-        
-        self.update_info("Welcome! Please load a maze file to start.")
+        self.canvas = None
 
-    def create_legend(self):
-        legend_frame = tk.Frame(self.root, bg='#F5F5F5')
-        legend_frame.pack(fill=tk.X, padx=20, pady=(0, 20))
-        
-        tk.Label(legend_frame, text="Legend:", bg='#F5F5F5', fg='#424242', 
-                font=('Arial', 9)).pack(anchor='w')
-        
-        legend_content = tk.Frame(legend_frame, bg='#F5F5F5')
-        legend_content.pack(fill=tk.X, pady=(2, 0))
-        
-        legend_items = [
-            ("Wall", COLORS["wall"]),
-            ("Path", COLORS["path"]),
-            ("Start", COLORS["start"]),
-            ("Goal", COLORS["goal"]),
-            ("Solution", COLORS["solution"]),
-            ("Key", COLORS["K"]),
-            ("Hint", COLORS["H"]),
-            ("Checkpoint", COLORS["C"])
+        # Store performance metrics for comparison table
+        self.performance_data = []
+
+        self.setup_ui()
+
+    def setup_ui(self):
+        # Main container widget
+        container = QWidget()
+        main_layout = QVBoxLayout(container)
+        main_layout.setContentsMargins(15, 15, 15, 15)
+        main_layout.setSpacing(15)
+
+        # --- Maze Canvas Section ---
+        self.canvas = MazeCanvas(self.maze)
+        self.canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.canvas.setMinimumSize(650, 450)
+        main_layout.addWidget(self.canvas)
+
+        # --- Status & Legend Section ---
+        info_layout = QHBoxLayout()
+        info_layout.setSpacing(40)
+
+        # Status label with bigger font
+        self.status_label = QLabel("Load a maze to get started.")
+        self.status_label.setFont(QFont("Consolas", 14))
+        self.status_label.setStyleSheet("color: #222; background-color: #eee; padding: 12px; border-radius: 5px;")
+        self.status_label.setMinimumHeight(40)
+        self.status_label.setAlignment(Qt.AlignCenter)
+        info_layout.addWidget(self.status_label, 3)
+
+        # Legend box with color keys aligned in grid
+        legend_group = QGroupBox("Legend")
+        legend_group.setStyleSheet("QGroupBox { font-weight: bold; }")
+        legend_layout = QGridLayout()
+        legend_colors = [
+            ("Start", "#FF0000"),
+            ("Goal", "#00AB1C"),
+            ("Teleport", "#8A2BE2"),
+            ("Encouragement", "#FFD700"),
+            ("Penalty", "#00BFFF"),
+            ("Wall", "#282828"),
+            ("Explored", "#FF8C00"),
+            ("Solution", "#DCEB71"),
         ]
-        
-        for i, (label, color) in enumerate(legend_items):
-            item_frame = tk.Frame(legend_content, bg='#F5F5F5')
-            item_frame.pack(side=tk.LEFT, padx=(0, 12))
-            
-            color_box = tk.Label(item_frame, bg=color, width=2, height=1, 
-                               relief='solid', borderwidth=1)
-            color_box.pack(side=tk.LEFT)
-            
-            text_label = tk.Label(item_frame, text=label, bg='#F5F5F5', 
-                                fg='#424242', font=('Arial', 8))
-            text_label.pack(side=tk.LEFT, padx=(3, 0))
 
-    def update_info(self, message):
-        self.info_text.delete(1.0, tk.END)
-        self.info_text.insert(tk.END, message)
-        self.info_text.see(tk.END)
-        self.root.update_idletasks()
+        for i, (name, color) in enumerate(legend_colors):
+            color_label = QLabel("■")
+            color_label.setStyleSheet(f"color: {color}; font-size: 18px;")
+            legend_layout.addWidget(color_label, i // 2, (i % 2) * 2, Qt.AlignRight)
+
+            text_label = QLabel(name)
+            text_label.setStyleSheet("font-size: 13px;")
+            legend_layout.addWidget(text_label, i // 2, (i % 2) * 2 + 1, Qt.AlignLeft)
+
+        legend_group.setLayout(legend_layout)
+        legend_group.setMaximumWidth(260)
+        info_layout.addWidget(legend_group, 1)
+
+        main_layout.addLayout(info_layout)
+
+        # --- Buttons Section ---
+        button_group = QGroupBox("Controls")
+        button_layout = QHBoxLayout()
+        button_layout.setSpacing(12)
+
+        # Create buttons with tooltips
+        self.load_button = QPushButton("Load Maze")
+        self.load_button.setToolTip("Load maze text file (*.txt)")
+        self.load_button.clicked.connect(self.load_maze)
+        button_layout.addWidget(self.load_button)
+
+        self.dfs_button = QPushButton("Solve DFS")
+        self.dfs_button.setToolTip("Depth First Search")
+        self.dfs_button.clicked.connect(self.run_dfs)
+        button_layout.addWidget(self.dfs_button)
+
+        self.bfs_button = QPushButton("Solve BFS")
+        self.bfs_button.setToolTip("Breadth First Search")
+        self.bfs_button.clicked.connect(self.run_bfs)
+        button_layout.addWidget(self.bfs_button)
+
+        self.astar_button = QPushButton("Solve A*")
+        self.astar_button.setToolTip("A* Search Algorithm")
+        self.astar_button.clicked.connect(self.run_astar)
+        button_layout.addWidget(self.astar_button)
+
+        self.dijkstra_button = QPushButton("Solve Dijkstra")
+        self.dijkstra_button.setToolTip("Dijkstra's Algorithm")
+        self.dijkstra_button.clicked.connect(self.run_dijkstra)
+        button_layout.addWidget(self.dijkstra_button)
+
+        self.lhr_button = QPushButton("Solve LHR")
+        self.lhr_button.setToolTip("Left-Hand Rule Maze Solving")
+        self.lhr_button.clicked.connect(self.run_lhr)
+        button_layout.addWidget(self.lhr_button)
+
+        self.rhr_button = QPushButton("Solve RHR")
+        self.rhr_button.setToolTip("Right-Hand Rule Maze Solving")
+        self.rhr_button.clicked.connect(self.run_rhr)
+        button_layout.addWidget(self.rhr_button)
+
+        self.deadendfill_button = QPushButton("Solve Dead-End Fill")
+        self.deadendfill_button.setToolTip("Dead-End Fill Algorithm")
+        self.deadendfill_button.clicked.connect(self.run_deadendfill)
+        button_layout.addWidget(self.deadendfill_button)
+
+        self.reset_button = QPushButton("Reset Maze")
+        self.reset_button.setToolTip("Clear solution and reset maze")
+        self.reset_button.clicked.connect(self.reset_all)
+        button_layout.addWidget(self.reset_button)
+
+        button_group.setLayout(button_layout)
+        main_layout.addWidget(button_group)
+
+        # --- Performance Table ---
+        self.performance_table = QTableWidget(0, 3)
+        self.performance_table.setHorizontalHeaderLabels(["Algorithm", "Steps", "Duration (s)"])
+        self.performance_table.horizontalHeader().setStretchLastSection(True)
+        self.performance_table.verticalHeader().setVisible(False)
+        self.performance_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.performance_table.setSelectionMode(QTableWidget.NoSelection)
+        self.performance_table.setMinimumHeight(130)
+        main_layout.addWidget(self.performance_table)
+
+        # Set the container and assign layout
+        self.setCentralWidget(container)
+
+        # Keyboard shortcuts
+        self.load_button.setShortcut("Ctrl+O")
+        self.reset_button.setShortcut("Ctrl+R")
 
     def load_maze(self):
-        try:
-            path = filedialog.askopenfilename(
-                title="Load Maze File",
-                filetypes=[("Text files", "*.txt"), ("All files", "*.*")]
-            )
-            if not path:
+        file_path, _ = QFileDialog.getOpenFileName(self, "Open Maze File", "assets", "Text Files (*.txt)")
+        if file_path:
+            try:
+                self.maze = Maze(file_path)
+            except Exception as e:
+                self.status_label.setText(f"Failed to load maze: {e}")
                 return
-                
-            self.maze = Maze(path)
-            self.maze.place_random_special_tiles(k=1, h=2, c=3)
-            self.draw_maze()
-            
-            info_msg = f"Maze loaded! Size: {self.maze.width} x {self.maze.height}\nSpecial tiles: 1 Key, 2 Hints, 3 Checkpoints"
-            self.update_info(info_msg)
-            
-        except Exception as e:
-            messagebox.showerror("Error", f"Could not load maze:\n{str(e)}")
-            self.update_info(f"Error: {str(e)}")
 
-    def clear_maze(self):
+            if self.canvas:
+                self.canvas.setParent(None)
+                self.canvas.deleteLater()
+
+            self.canvas = MazeCanvas(self.maze)
+            self.canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+            self.canvas.setMinimumSize(650, 450)
+
+            self.centralWidget().layout().insertWidget(0, self.canvas)
+            self.status_label.setText("Maze loaded successfully.")
+            self.performance_data.clear()
+            self.update_performance_table()
+
+    def run_algorithm(self, algo_func, speed=50):
+        if not self.maze:
+            self.status_label.setText("Please load a maze first!")
+            return
+        self.reset_for_new_algorithm()
+        self.algorithm_generator = algo_func(self.maze)
+        self.timer.start(speed)
+
+    def run_bfs(self): self.run_algorithm(bfs, 100)
+    def run_dfs(self): self.run_algorithm(dfs, 100)
+    def run_astar(self): self.run_algorithm(astar, 50)
+    def run_dijkstra(self): self.run_algorithm(dijkstra, 50)
+    def run_lhr(self): self.run_algorithm(lhr, 50)
+    def run_rhr(self): self.run_algorithm(rhr, 50)
+    def run_deadendfill(self): self.run_algorithm(deadendfill, 30)
+
+    def reset_for_new_algorithm(self):
+        self.timer.stop()
         if self.maze:
-            self.maze.solution = None
-            self.draw_maze()
-            self.update_info("Solution cleared.")
-        else:
-            messagebox.showinfo("Info", "No maze loaded.")
-            self.update_info("No maze to clear.")
+            self.maze.reset()
+        if self.canvas:
+            self.canvas.colored_cells.clear()
+            self.canvas.reset()
+            self.canvas.update()
 
-    def draw_maze(self):
-        if not self.maze:
-            return
-            
-        self.canvas.delete("all")
-        
-        self.canvas_width = self.maze.width * TILE_SIZE
-        self.canvas_height = self.maze.height * TILE_SIZE
-        self.canvas.configure(scrollregion=(0, 0, self.canvas_width, self.canvas_height))
-        
-        for i in range(self.maze.height):
-            for j in range(self.maze.width):
-                x0, y0 = j * TILE_SIZE, i * TILE_SIZE
-                x1, y1 = x0 + TILE_SIZE, y0 + TILE_SIZE
-                tile = "path"
-
-                if self.maze.walls[i][j]:
-                    tile = "wall"
-                elif (i, j) == self.maze.start:
-                    tile = "start"
-                elif (i, j) == self.maze.goal:
-                    tile = "goal"
-                elif any((i, j) in self.maze.special_tiles[key] for key in self.maze.special_tiles):
-                    for key in self.maze.special_tiles:
-                        if (i, j) in self.maze.special_tiles[key]:
-                            tile = key
-                            break
-                elif self.maze.solution and (i, j) in self.maze.solution[1]:
-                    tile = "solution"
-
-                # Draw simple tiles
-                self.canvas.create_rectangle(x0, y0, x1, y1, 
-                                           fill=COLORS[tile], 
-                                           outline="#E0E0E0",
-                                           width=1)
-                
-                # Simple text labels
-                if tile in ["K", "H", "C"]:
-                    self.canvas.create_text(x0 + TILE_SIZE//2, y0 + TILE_SIZE//2,
-                                          text=tile, fill="#424242", font=('Arial', 8))
-                elif tile == "start":
-                    self.canvas.create_text(x0 + TILE_SIZE//2, y0 + TILE_SIZE//2,
-                                          text="S", fill="white", font=('Arial', 8))
-                elif tile == "goal":
-                    self.canvas.create_text(x0 + TILE_SIZE//2, y0 + TILE_SIZE//2,
-                                          text="G", fill="white", font=('Arial', 8))
-
-    def solve_and_draw(self, solver_fn, algorithm_name):
-        if not self.maze:
-            messagebox.showinfo("Info", "Please load a maze first.")
-            self.update_info("Please load a maze first.")
-            return
-        
+    def animate_step(self):
         try:
-            self.update_info(f"Solving with {algorithm_name}...")
-            self.root.update_idletasks()
-            
-            start = time.time()
-            solver_fn(self.maze)
-            end = time.time()
-            
-            if self.maze.solution:
-                steps = len(self.maze.solution[1])
-                time_taken = end - start
-                info_msg = f"{algorithm_name} complete!\nTime: {time_taken:.9f} seconds\nPath length: {steps} steps"
-                self.update_info(info_msg)
-                self.draw_maze()
-            else:
-                self.update_info(f"{algorithm_name} could not find a solution.")
-                
+            result = next(self.algorithm_generator)
+
+            if result["status"] == "exploring":
+                row, col = result["current"]
+                self.canvas.color_cell(row, col, QColor(255, 140, 0))
+                algo_name = self.get_current_algorithm_name()
+                self.status_label.setText(
+                    f"Algorithm: {algo_name} | Exploring... Steps: {result['steps']} | "
+                    f"Time: {result['duration']:.3f}s"
+                )
+                self.canvas.update()
+
+            elif result["status"] == "done":
+                if result["path"]:
+                    for row, col in result["path"]:
+                        self.canvas.color_cell(row, col, QColor(220, 235, 113))
+                algo_name = self.get_current_algorithm_name()
+                path_length = len(result["path"]) if result["path"] else 0
+                self.status_label.setText(
+                    f"Algorithm: {algo_name} | Solution found! Path length: {path_length} | "
+                    f"Steps: {result['steps']} | Time: {result['duration']:.3f}s"
+                )
+                self.timer.stop()
+                self.canvas.update()
+                self.record_performance(algo_name, result['steps'], result['duration'])
+
+            elif result["status"] == "failed":
+                algo_name = self.get_current_algorithm_name()
+                self.status_label.setText(
+                    f"Algorithm: {algo_name} | No solution found! Steps: {result['steps']} | "
+                    f"Time: {result['duration']:.3f}s"
+                )
+                self.timer.stop()
+                self.canvas.update()
+                self.record_performance(algo_name, result['steps'], result['duration'])
+
+            elif result["status"] == "ready_for_pathfinding":
+                self.status_label.setText("Dead-end pruning complete! Starting pathfinding...")
+
+        except StopIteration:
+            self.timer.stop()
+            algo_name = self.get_current_algorithm_name()
+            self.status_label.setText(f"Algorithm: {algo_name} | Completed")
+
         except Exception as e:
-            error_msg = f"Error with {algorithm_name}:\n{str(e)}"
-            messagebox.showerror("Algorithm Error", error_msg)
-            self.update_info(f"Error: {str(e)}")
+            self.timer.stop()
+            self.status_label.setText(f"Error during algorithm execution: {e}")
+            print(f"Animation error: {e}")
 
-    def solve_bfs(self):
-        from algorithms.bfs import solve_bfs
-        self.solve_and_draw(solve_bfs, "BFS")
+    def get_current_algorithm_name(self):
+        if not self.algorithm_generator:
+            return "Unknown"
+        gen = self.algorithm_generator
+        if hasattr(gen, 'gi_code'):
+            # For generators, get the function name
+            name = gen.gi_code.co_name
+        elif hasattr(gen, '__name__'):
+            name = gen.__name__
+        else:
+            name = str(type(gen))
+        mapping = {
+            'bfs': 'BFS',
+            'dfs': 'DFS',
+            'astar': 'A*',
+            'dijkstra': 'Dijkstra',
+            'lhr': 'Left-Hand Rule',
+            'rhr': 'Right-Hand Rule',
+            'deadendfill': 'Dead-End Fill'
+        }
+        return mapping.get(name, name.upper())
 
-    def solve_dfs(self):
-        from algorithms.dfs import solve_dfs
-        self.solve_and_draw(solve_dfs, "DFS")
+    def reset_all(self):
+        self.timer.stop()
+        if self.maze:
+            self.maze.reset()
+        if self.canvas:
+            self.canvas.colored_cells.clear()
+            self.canvas.reset()
+            self.canvas.update()
+        self.status_label.setText("Maze reset.")
+        self.performance_data.clear()
+        self.update_performance_table()
 
-    def solve_dijkstra(self):
-        from algorithms.dijkstra import dijkstra
-        self.solve_and_draw(dijkstra, "Dijkstra")
+    def record_performance(self, algo_name, steps, duration):
+        self.performance_data.append((algo_name, steps, duration))
+        self.update_performance_table()
 
-    def solve_a_star(self):
-        from algorithms.a_star import astar 
-        self.solve_and_draw(astar, "A*")
-
-    def solve_lhr(self):
-        from algorithms.LH import left_hand 
-        self.solve_and_draw(left_hand, "Left Hand Rule")
-
-    def solve_rhr(self):
-        from algorithms.RH import right_hand  
-        self.solve_and_draw(right_hand, "Right Hand Rule")
-
-    def solve_def(self):
-        from algorithms.DEF import dead_end_fill
-        self.solve_and_draw(dead_end_fill, "Dead End Fill")
-
-if __name__ == "__main__":
-    root = tk.Tk()
-    root.geometry("1000x700")
-    root.minsize(800, 600)
-    gui = MazeGUI(root)
-    root.mainloop()
+    def update_performance_table(self):
+        self.performance_table.setRowCount(len(self.performance_data))
+        for row, (algo, steps, duration) in enumerate(self.performance_data):
+            self.performance_table.setItem(row, 0, QTableWidgetItem(algo))
+            self.performance_table.setItem(row, 1, QTableWidgetItem(str(steps)))
+            self.performance_table.setItem(row, 2, QTableWidgetItem(f"{duration:.4f}"))
